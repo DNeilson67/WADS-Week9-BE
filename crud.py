@@ -145,6 +145,10 @@ def create_session(db: Session, session_id:str, user_id: int):
     db.add(db_session)
     db.commit()
 
+def check_session(db: Session, session_id: str):
+    db_session = db.query(models.SessionData).filter(session_id = session_id)
+    return db_session
+
 def delete_session(db: Session):
     db.query(models.SessionData).delete()
     db.commit()

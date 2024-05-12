@@ -1,6 +1,7 @@
 # FastAPI
-from fastapi import FastAPI, HTTPException, Depends, Request, Response, status
+from fastapi import FastAPI, HTTPException, Depends, Request, Response, status, __version__
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Annotated
 import crud, models, schemas
@@ -14,14 +15,16 @@ from fastapi_sessions.session_verifier import SessionVerifier
 from fastapi_sessions.frontends.implementations import SessionCookie, CookieParameters
 import uvicorn
 from os import getenv
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 models.Base.metadata.create_all(bind = engine)
 
 origins = [
-    "http://localhost:5173",
-    "http://localhost"
+    "http://0.0.0.0:5173",
+    "http://0.0.0.0"
 ]
 
 cookie_params = CookieParameters()
@@ -70,9 +73,29 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
+html = f"""
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>FastAPI on Vercel</title>
+        <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
+    </head>
+    <body>
+        <div class="bg-gray-200 p-4 rounded-lg shadow-lg">
+            <h1>Hello from FastAPI@{__version__}</h1>
+            <ul>
+                <li><a href="/docs">/docs</a></li>
+                <li><a href="/redoc">/redoc</a></li>
+            </ul>
+            <p>Powered by <a href="https://vercel.com" target="_blank">Vercel</a></p>
+        </div>
+    </body>
+</html>
+"""
+
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return HTMLResponse(html)
 
 task_id_count = 0
 tasks = {}
@@ -171,7 +194,7 @@ async def whoami(session_data: SessionData = Depends(verifier)):
     return session_data
 
 
-@app.delete("/delete_session")
+@app.delete("/delete_session", dependencies=[Depends(cookie)])
 async def del_session(response: Response, session_id: UUID = Depends(cookie), db: Session = Depends(get_db)):
     await backend.delete(session_id)
     cookie.delete_from_response(response)
@@ -179,6 +202,5 @@ async def del_session(response: Response, session_id: UUID = Depends(cookie), db
 
     return "deleted session"
 
-if __name__ == "__main__":
-    port = int(getenv("PORT", 8000))
-    uvicorn.run("main:app", port = port, reload = True)
+if __name__ == '__main__':
+    uvicorn.run("main:app", host = "0.0.0.0", reload=True)
